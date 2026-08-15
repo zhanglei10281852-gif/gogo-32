@@ -124,14 +124,9 @@ func (s Schedule) ExportOrder(indices []int) ([]int, error) {
 }
 
 func (s Schedule) AverageImportPrice() int64 {
-	if len(s.rates) == 0 {
-		return 0
-	}
-	var total int64
-	for _, rate := range s.rates {
-		total += rate.ImportPriceMicroPerKWh
-	}
-	return total / int64(len(s.rates))
+	return averageNonNegativeRates(s.rates, func(rate Rate) int64 {
+		return rate.ImportPriceMicroPerKWh
+	})
 }
 
 func (s Schedule) AverageCarbon() int64 {

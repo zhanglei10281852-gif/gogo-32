@@ -33,9 +33,6 @@ func (s Schedule) Statistics() Statistics {
 		MinimumCarbon:      s.rates[0].CarbonGramsPerKWh,
 		MaximumCarbon:      s.rates[0].CarbonGramsPerKWh,
 	}
-	var importTotal int64
-	var exportTotal int64
-	var carbonTotal int64
 	for _, rate := range s.rates {
 		if rate.ImportPriceMicroPerKWh < result.MinimumImportPrice {
 			result.MinimumImportPrice = rate.ImportPriceMicroPerKWh
@@ -55,14 +52,10 @@ func (s Schedule) Statistics() Statistics {
 		if rate.CarbonGramsPerKWh > result.MaximumCarbon {
 			result.MaximumCarbon = rate.CarbonGramsPerKWh
 		}
-		importTotal += rate.ImportPriceMicroPerKWh
-		exportTotal += rate.ExportPriceMicroPerKWh
-		carbonTotal += rate.CarbonGramsPerKWh
 	}
-	count := int64(len(s.rates))
-	result.AverageImportPrice = importTotal / count
-	result.AverageExportPrice = exportTotal / count
-	result.AverageCarbon = carbonTotal / count
+	result.AverageImportPrice = averageNonNegativeRates(s.rates, func(rate Rate) int64 { return rate.ImportPriceMicroPerKWh })
+	result.AverageExportPrice = averageNonNegativeRates(s.rates, func(rate Rate) int64 { return rate.ExportPriceMicroPerKWh })
+	result.AverageCarbon = averageNonNegativeRates(s.rates, func(rate Rate) int64 { return rate.CarbonGramsPerKWh })
 	result.ImportSpread = result.MaximumImportPrice - result.MinimumImportPrice
 	result.ExportSpread = result.MaximumExportPrice - result.MinimumExportPrice
 	return result
@@ -133,4 +126,24 @@ func (s Schedule) ImportCostForSeries(energyWh []int64) (int64, error) {
 		total += cost
 	}
 	return total, nil
+}
+
+func averageNonNegativeRates(rates []Rate, value func(Rate) int64) int64 {
+	if len(rates) == 0 {
+		return 0
+	}
+	count := int64(len(rates))
+	var quotient, remainder int64
+	for _, rate := range rates {
+		current := value(rate)
+		quotient += current / count
+		part := current % count
+		if remainder >= count-part {
+			quotient++
+			remainder -= count - part
+		} else {
+			remainder += part
+		}
+	}
+	return quotient
 }
