@@ -3,6 +3,7 @@ package tariff
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"sort"
 
 	"gridflex/internal/model"
@@ -124,25 +125,11 @@ func (s Schedule) ExportOrder(indices []int) ([]int, error) {
 }
 
 func (s Schedule) AverageImportPrice() int64 {
-	if len(s.rates) == 0 {
-		return 0
-	}
-	var total int64
-	for _, rate := range s.rates {
-		total += rate.ImportPriceMicroPerKWh
-	}
-	return total / int64(len(s.rates))
+	return meanRate(s.rates, func(r Rate) int64 { return r.ImportPriceMicroPerKWh })
 }
 
 func (s Schedule) AverageCarbon() int64 {
-	if len(s.rates) == 0 {
-		return 0
-	}
-	var total int64
-	for _, rate := range s.rates {
-		total += rate.CarbonGramsPerKWh
-	}
-	return total / int64(len(s.rates))
+	return meanRate(s.rates, func(r Rate) int64 { return r.CarbonGramsPerKWh })
 }
 
 func (s Schedule) IsExportAttractive(index int) (bool, error) {
@@ -151,4 +138,21 @@ func (s Schedule) IsExportAttractive(index int) (bool, error) {
 		return false, err
 	}
 	return rate.ExportPriceMicroPerKWh > s.AverageImportPrice(), nil
+}
+
+// meanRate returns the truncated mean of a selected tariff field across rates.
+// The sum is accumulated with arbitrary precision so that very large prices
+// (such as math.MaxInt64) cannot wrap to a negative total, which would
+// otherwise let a negligible export price compare as attractive. For sums that
+// fit in int64 the result is identical to a plain sum/len division, so normal
+// tariff inputs keep their existing statistics and ordering behavior.
+func meanRate(rates []Rate, pick func(Rate) int64) int64 {
+	if len(rates) == 0 {
+		return 0
+	}
+	total := new(big.Int)
+	for _, rate := range rates {
+		total.Add(total, big.NewInt(pick(rate)))
+	}
+	return new(big.Int).Quo(total, big.NewInt(int64(len(rates)))).Int64()
 }

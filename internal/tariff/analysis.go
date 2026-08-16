@@ -33,9 +33,6 @@ func (s Schedule) Statistics() Statistics {
 		MinimumCarbon:      s.rates[0].CarbonGramsPerKWh,
 		MaximumCarbon:      s.rates[0].CarbonGramsPerKWh,
 	}
-	var importTotal int64
-	var exportTotal int64
-	var carbonTotal int64
 	for _, rate := range s.rates {
 		if rate.ImportPriceMicroPerKWh < result.MinimumImportPrice {
 			result.MinimumImportPrice = rate.ImportPriceMicroPerKWh
@@ -55,14 +52,10 @@ func (s Schedule) Statistics() Statistics {
 		if rate.CarbonGramsPerKWh > result.MaximumCarbon {
 			result.MaximumCarbon = rate.CarbonGramsPerKWh
 		}
-		importTotal += rate.ImportPriceMicroPerKWh
-		exportTotal += rate.ExportPriceMicroPerKWh
-		carbonTotal += rate.CarbonGramsPerKWh
 	}
-	count := int64(len(s.rates))
-	result.AverageImportPrice = importTotal / count
-	result.AverageExportPrice = exportTotal / count
-	result.AverageCarbon = carbonTotal / count
+	result.AverageImportPrice = meanRate(s.rates, func(r Rate) int64 { return r.ImportPriceMicroPerKWh })
+	result.AverageExportPrice = meanRate(s.rates, func(r Rate) int64 { return r.ExportPriceMicroPerKWh })
+	result.AverageCarbon = meanRate(s.rates, func(r Rate) int64 { return r.CarbonGramsPerKWh })
 	result.ImportSpread = result.MaximumImportPrice - result.MinimumImportPrice
 	result.ExportSpread = result.MaximumExportPrice - result.MinimumExportPrice
 	return result
